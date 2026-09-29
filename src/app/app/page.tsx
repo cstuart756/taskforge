@@ -3,10 +3,14 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { logoutUser } from "@/lib/auth-actions";
 import { getUserTeams } from "@/lib/team-actions";
+import { getTaskMetrics } from "@/lib/task-actions";
 
 function formatRole(role: string): string {
   return role.charAt(0) + role.slice(1).toLowerCase();
-}
+}    const [teams, metrics] = await Promise.all([
+    getUserTeams(),
+    getTaskMetrics(),
+  ]);
 
 function formatPlan(plan: string): string {
   return plan === "PRO" ? "Pro plan" : "Free plan";
@@ -28,7 +32,7 @@ export default async function AppDashboardPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-4xl mx-auto px-6 py-10">
-        <div className="flex items-start justify-between mb-10">
+                <div className="flex items-start justify-between mb-10">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
               Welcome to TaskForge
@@ -41,14 +45,50 @@ export default async function AppDashboardPage() {
             </p>
           </div>
 
-          <form action={logoutUser}>
-            <button
-              type="submit"
+          <div className="flex items-center gap-3">
+            <Link
+              href="/app/tasks"
               className="bg-white text-gray-700 border border-gray-300 px-4 py-2 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
             >
-              Log out
-            </button>
-          </form>
+              All tasks
+            </Link>
+            <form action={logoutUser}>
+              <button
+                type="submit"
+                className="bg-white text-gray-700 border border-gray-300 px-4 py-2 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              >
+                Log out
+              </button>
+            </form>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          <div className="bg-white border border-gray-200 rounded-lg p-5">
+            <p className="text-sm text-gray-500 mb-1">Open</p>
+            <p className="text-3xl font-bold text-gray-900">
+              {metrics.open}
+            </p>
+          </div>
+          <div className="bg-white border border-gray-200 rounded-lg p-5">
+            <p className="text-sm text-gray-500 mb-1">In progress</p>
+            <p className="text-3xl font-bold text-gray-900">
+              {metrics.inProgress}
+            </p>
+          </div>
+          <div className="bg-white border border-gray-200 rounded-lg p-5">
+            <p className="text-sm text-gray-500 mb-1">Done</p>
+            <p className="text-3xl font-bold text-gray-900">
+              {metrics.done}
+            </p>
+          </div>
+          <div className="bg-white border border-gray-200 rounded-lg p-5">
+            <p className="text-sm text-gray-500 mb-1">Overdue</p>
+            <p
+              className={`text-3xl font-bold ${metrics.overdue > 0 ? "text-red-600" : "text-gray-900"}`}
+            >
+              {metrics.overdue}
+            </p>
+          </div>
         </div>
 
         <div className="flex items-center justify-between mb-4">

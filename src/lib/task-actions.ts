@@ -399,3 +399,141 @@ export async function softDeleteTask(taskId: string) {
 
   redirect(`/app/teams/${task.team.slug}`);
 }
+// ---------------------------------------------------------------------------
+// Get all tasks across every team the user belongs to
+// ---------------------------------------------------------------------------
+
+export type TaskListItem = {
+  id: string;
+  title: string;
+  status: "OPEN" | "IN_PROGRESS" | "DONE";
+  priority: "LOW" | "NORMAL" | "HIGH";
+  dueDate: Date | null;
+  team: {
+    id: string;
+    name: string;
+    slug: string;
+  };
+  assignee: {
+    id: string;
+    name: string | null;
+    email: string;
+  } | null;
+};
+
+export async function getAllTasksForUser(
+  statusFilter?: "OPEN" | "IN_PROGRESS" | "DONE"
+): Promise<TaskListItem[]> {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return [];
+  }
+
+  const tasks = await db.task.findMany({
+    where: {
+      deletedAt: null,
+      status: statusFilter,
+      team: {
+        members: {
+          some: { userId: session.user.id },
+        },
+      },
+    },
+    orderBy: [
+      { dueDate: { sort: "asc", nulls: "last" } },
+      { createdAt: "desc" },
+    ],
+    include: {
+      team: {
+        select: { id: true, name: true, slug: true },
+      },
+      assignee: {
+        select: { id: true, name: true, email: true },
+      },
+    },
+  });
+
+  return tasks.map((t) => ({
+    id: t.id,
+    title: t.title,
+    status: t.status,
+    priority: t.priority,
+    dueDate: t.dueDate,
+    team: t.team,
+    assignee: t.assignee,
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// Task metrics for the dashboard
+// ---------------------------------------------------------------------------
+
+export type TaskMetrics = {
+  open: number;
+  inProgress: number;
+  done: number;
+  overdue: number;
+  total: number;
+};
+
+export async function getTaskMetrics(): Promise<TaskMetrics> {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return { open: 0, inProgress: 0, done: 0, overdue: 0, total: 0 };
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const [open, inProgress, done, overdue, total] = await Promise.all([
+    db.task.count({
+      where: {
+        deletedAt: null,
+        status: "OPEN",
+        team: {
+          members: { some: { userId: session.user.id } },
+        },
+      },
+    }),
+    db.task.count({
+      where: {
+        deletedAt: null,
+        status: "IN_PROGRESS",
+        team: {
+          members: { some: { userId: session.user.id } },
+        },
+      },
+    }),
+    db.task.count({
+      where: {
+        deletedAt: null,
+        status: "DONE",
+        team: {
+          members: { some: { userId: session.user.id } },
+        },
+      },
+    }),
+    db.task.count({
+      where: {
+        deletedAt: null,
+        status: { not: "DONE" },
+        dueDate: { lt: today },
+        team: {
+          members: { some: { userId: session.user.id } },
+        },
+      },
+    }),
+    db.task.count({
+      where: {
+        deletedAt: null,
+        team: {
+          members: { some: { userId: session.user.id } },
+        },
+      },
+    }),
+  ]);
+
+  return { open, inProgress, done, overdue, total };
+}
