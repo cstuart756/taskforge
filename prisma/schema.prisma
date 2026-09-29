@@ -51,14 +51,20 @@ enum InvitationStatus {
 // ---------------------------------------------------------------------------
 
 model User {
-  id            String   @id @default(cuid())
-  email         String   @unique
+  id            String    @id @default(cuid())
+  email         String    @unique
+  emailVerified DateTime?
   name          String?
+  image         String?
   passwordHash  String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
-  // Relations
+  // Auth.js relations
+  accounts Account[]
+  sessions Session[]
+
+  // App relations
   memberships   TeamMember[]
   createdTasks  Task[]       @relation("TaskCreator")
   assignedTasks Task[]       @relation("TaskAssignee")
@@ -67,7 +73,53 @@ model User {
 
   @@map("users")
 }
+// ---------------------------------------------------------------------------
+// Auth.js models
+// These models are required by @auth/prisma-adapter and follow its schema
+// conventions. They are not used directly by TaskForge application code.
+// ---------------------------------------------------------------------------
 
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
 model Team {
   id                   String   @id @default(cuid())
   name                 String
@@ -78,7 +130,6 @@ model Team {
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
-  // Relations
   members     TeamMember[]
   tasks       Task[]
   invitations Invitation[]
@@ -93,7 +144,6 @@ model TeamMember {
   role     TeamRole @default(MEMBER)
   joinedAt DateTime @default(now())
 
-  // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
@@ -117,7 +167,6 @@ model Task {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
-  // Relations
   team     Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
   creator  User      @relation("TaskCreator", fields: [creatorId], references: [id])
   assignee User?     @relation("TaskAssignee", fields: [assigneeId], references: [id])
@@ -137,7 +186,6 @@ model Comment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Relations
   task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
   author User @relation(fields: [authorId], references: [id])
 
@@ -157,7 +205,6 @@ model Invitation {
   acceptedAt DateTime?
   createdAt  DateTime         @default(now())
 
-  // Relations
   team    Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
   inviter User @relation("InvitationInviter", fields: [inviterId], references: [id])
 
