@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs";
 import { AuthError } from "next-auth";
 import { db } from "@/lib/db";
 import { signIn, signOut } from "@/auth";
+import { uniqueSlug } from "@/lib/slug";
 // ---------------------------------------------------------------------------
 // Validation schemas (Zod 4 syntax)
 // ---------------------------------------------------------------------------
@@ -77,13 +78,39 @@ export async function registerUser(
 
   const passwordHash = await bcrypt.hash(password, 12);
 
+  // Generate a unique slug for the user's default team
+  const teamName = `${name}'s Team`;
+  const teamSlug = await uniqueSlug(teamName, async (candidate) => {
+    const found = await db.team.findUnique({ where: { slug: candidate } });
+    return found !== null;
+  });
+
   try {
-    await db.user.create({
-      data: {
-        name,
-        email: lowerEmail,
-        passwordHash,
-      },
+    // Create the user, their default team, and their membership
+    // in a single transaction so nothing can be partially created.
+    await db.$transaction(async (tx) => {
+      const newUser = await tx.user.create({
+        data: {
+          name,
+          email: lowerEmail,
+          passwordHash,
+        },
+      });
+
+      const newTeam = await tx.team.create({
+        data: {
+          name: teamName,
+          slug: teamSlug,
+        },
+      });
+
+      await tx.teamMember.create({
+        data: {
+          userId: newUser.id,
+          teamId: newTeam.id,
+          role: "OWNER",
+        },
+      });
     });
   } catch (error) {
     console.error("Registration failed:", error);
