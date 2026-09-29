@@ -163,8 +163,14 @@ export default async function TaskDetailPage({ params }: PageProps) {
           </dl>
         </div>
 
-        <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3">
           <TaskStatusButton taskId={task.id} status={task.status} />
+          <Link
+            href={`/app/tasks/${task.id}/edit`}
+            className="bg-white text-gray-700 border border-gray-300 px-4 py-2 rounded-md hover:bg-gray-50"
+          >
+            Edit
+          </Link>
         </div>
       </div>
     </div>

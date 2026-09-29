@@ -35,6 +35,8 @@ const CreateTaskSchema = z.object({
     .transform((v) => (v === "" || v === "unassigned" ? undefined : v)),
 });
 
+const UpdateTaskSchema = CreateTaskSchema;
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -260,4 +262,101 @@ export async function toggleTaskStatus(taskId: string) {
 
   revalidatePath("/app");
   revalidatePath(`/app/tasks/${taskId}`);
+}
+
+// ---------------------------------------------------------------------------
+// Update a task
+// ---------------------------------------------------------------------------
+
+export async function updateTask(
+  taskId: string,
+  _prevState: TaskActionResult | undefined,
+  formData: FormData
+): Promise<TaskActionResult> {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return { success: false, error: "You must be signed in." };
+  }
+
+  const task = await db.task.findFirst({
+    where: {
+      id: taskId,
+      deletedAt: null,
+      team: {
+        members: {
+          some: { userId: session.user.id },
+        },
+      },
+    },
+    include: { team: true },
+  });
+
+  if (!task) {
+    return {
+      success: false,
+      error: "Task not found or you do not have access.",
+    };
+  }
+
+  const parsed = UpdateTaskSchema.safeParse({
+    title: formData.get("title"),
+    description: formData.get("description"),
+    dueDate: formData.get("dueDate"),
+    priority: formData.get("priority") || "NORMAL",
+    assigneeId: formData.get("assigneeId"),
+  });
+
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: "Please correct the errors below.",
+      fieldErrors: parsed.error.flatten().fieldErrors,
+    };
+  }
+
+  const { title, description, dueDate, priority, assigneeId } = parsed.data;
+
+  if (assigneeId) {
+    const assigneeIsMember = await db.teamMember.findUnique({
+      where: {
+        userId_teamId: {
+          userId: assigneeId,
+          teamId: task.teamId,
+        },
+      },
+    });
+
+    if (!assigneeIsMember) {
+      return {
+        success: false,
+        error: "The selected assignee is not a member of this team.",
+      };
+    }
+  }
+
+  try {
+    await db.task.update({
+      where: { id: taskId },
+      data: {
+        title,
+        description: description ?? null,
+        dueDate: dueDate ? new Date(dueDate) : null,
+        priority,
+        assigneeId: assigneeId ?? null,
+      },
+    });
+  } catch (error) {
+    console.error("Task update failed:", error);
+    return {
+      success: false,
+      error: "Could not update the task. Please try again.",
+    };
+  }
+
+  revalidatePath("/app");
+  revalidatePath(`/app/tasks/${taskId}`);
+  revalidatePath(`/app/teams/${task.team.slug}`);
+
+  redirect(`/app/tasks/${taskId}`);
 }
