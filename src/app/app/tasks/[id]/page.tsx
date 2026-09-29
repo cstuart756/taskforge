@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { getTaskById } from "@/lib/task-actions";
 import TaskStatusButton from "@/components/task/task-status-button";
+import DeleteTaskButton from "@/components/task/delete-task-button";
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -163,7 +164,7 @@ export default async function TaskDetailPage({ params }: PageProps) {
           </dl>
         </div>
 
-                <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3">
           <TaskStatusButton taskId={task.id} status={task.status} />
           <Link
             href={`/app/tasks/${task.id}/edit`}
@@ -171,6 +172,7 @@ export default async function TaskDetailPage({ params }: PageProps) {
           >
             Edit
           </Link>
+          <DeleteTaskButton taskId={task.id} taskTitle={task.title} />
         </div>
       </div>
     </div>

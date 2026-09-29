@@ -360,3 +360,42 @@ export async function updateTask(
 
   redirect(`/app/tasks/${taskId}`);
 }
+
+// ---------------------------------------------------------------------------
+// Soft-delete a task
+// ---------------------------------------------------------------------------
+
+export async function softDeleteTask(taskId: string) {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    throw new Error("You must be signed in.");
+  }
+
+  const task = await db.task.findFirst({
+    where: {
+      id: taskId,
+      deletedAt: null,
+      team: {
+        members: {
+          some: { userId: session.user.id },
+        },
+      },
+    },
+    include: { team: true },
+  });
+
+  if (!task) {
+    throw new Error("Task not found or you do not have access.");
+  }
+
+  await db.task.update({
+    where: { id: taskId },
+    data: { deletedAt: new Date() },
+  });
+
+  revalidatePath("/app");
+  revalidatePath(`/app/teams/${task.team.slug}`);
+
+  redirect(`/app/teams/${task.team.slug}`);
+}
