@@ -37,6 +37,18 @@ export type TeamDetail = {
       email: string;
     };
   }[];
+  tasks: {
+    id: string;
+    title: string;
+    status: "OPEN" | "IN_PROGRESS" | "DONE";
+    priority: "LOW" | "NORMAL" | "HIGH";
+    dueDate: Date | null;
+    assignee: {
+      id: string;
+      name: string | null;
+      email: string;
+    } | null;
+  }[];
 };
 
 export type TeamActionResult =
@@ -123,6 +135,15 @@ export async function getTeamBySlug(
             },
             orderBy: { joinedAt: "asc" },
           },
+          tasks: {
+            where: { deletedAt: null },
+            orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+            include: {
+              assignee: {
+                select: { id: true, name: true, email: true },
+              },
+            },
+          },
         },
       },
     },
@@ -143,6 +164,14 @@ export async function getTeamBySlug(
       role: m.role,
       joinedAt: m.joinedAt,
       user: m.user,
+    })),
+    tasks: membership.team.tasks.map((t) => ({
+      id: t.id,
+      title: t.title,
+      status: t.status,
+      priority: t.priority,
+      dueDate: t.dueDate,
+      assignee: t.assignee,
     })),
   };
 }
