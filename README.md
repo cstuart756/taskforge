@@ -13,16 +13,20 @@ and complexity of enterprise tools like Jira or Asana.
 Team members can create, assign, and track tasks in a fast, focused
 interface that works on desktop, tablet, and mobile.
 
-## Features (planned)
+## Features
 
-- User registration and authentication
-- Task creation, editing, and deletion
-- Task assignment to team members
-- Task status tracking
-- Team dashboards
-- Admin user management
-- Billing and subscriptions
-- Responsive design (mobile, tablet, desktop)
+- ✅ User registration and authentication (Auth.js)
+- ✅ Teams with member roles and permissions
+- ✅ Team invitations with secure email-based acceptance
+- ✅ Task creation, editing, and soft deletion
+- ✅ Task status tracking (Open / In progress / Done)
+- ✅ Task assignment to team members
+- ✅ Task comments and discussion
+- ✅ Dashboard with live task metrics
+- ✅ All-tasks view with status filters
+- ⏳ Billing and subscriptions (planned)
+- ⏳ Admin user management (planned)
+- ⏳ Email notifications (planned)
 
 ## Tech stack
 
