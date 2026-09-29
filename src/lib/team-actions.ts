@@ -243,3 +243,352 @@ export async function createTeam(
   revalidatePath("/app");
   redirect(`/app/teams/${createdSlug}`);
 }
+
+// ---------------------------------------------------------------------------
+// Invitations
+// ---------------------------------------------------------------------------
+
+export type PendingInvitation = {
+  id: string;
+  email: string;
+  role: TeamRole;
+  token: string;
+  expiresAt: Date;
+  createdAt: Date;
+};
+
+export type InvitationResult =
+  | { success: true; message: string }
+  | {
+      success: false;
+      error: string;
+      fieldErrors?: Record<string, string[] | undefined>;
+    };
+
+const CreateInvitationSchema = z.object({
+  email: z.email("Please enter a valid email address"),
+});
+
+// ---------------------------------------------------------------------------
+// Create an invitation for a team
+// ---------------------------------------------------------------------------
+
+export async function createInvitation(
+  teamSlug: string,
+  _prevState: InvitationResult | undefined,
+  formData: FormData
+): Promise<InvitationResult> {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return { success: false, error: "You must be signed in." };
+  }
+
+  // Verify the user is a supervisor/admin/owner of this team
+  const membership = await db.teamMember.findFirst({
+    where: {
+      userId: session.user.id,
+      team: { slug: teamSlug },
+      role: { in: ["OWNER", "ADMIN", "SUPERVISOR"] },
+    },
+    include: { team: true },
+  });
+
+  if (!membership) {
+    return {
+      success: false,
+      error: "You do not have permission to invite members to this team.",
+    };
+  }
+
+  const parsed = CreateInvitationSchema.safeParse({
+    email: formData.get("email"),
+  });
+
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: "Please correct the errors below.",
+      fieldErrors: parsed.error.flatten().fieldErrors,
+    };
+  }
+
+  const email = parsed.data.email.toLowerCase();
+
+  // Check whether the user is already a member
+  const existingUser = await db.user.findUnique({
+    where: { email },
+  });
+
+  if (existingUser) {
+    const alreadyMember = await db.teamMember.findUnique({
+      where: {
+        userId_teamId: {
+          userId: existingUser.id,
+          teamId: membership.team.id,
+        },
+      },
+    });
+
+    if (alreadyMember) {
+      return {
+        success: false,
+        error: "That user is already a member of this team.",
+      };
+    }
+  }
+
+  // Check for an existing pending invitation
+  const existingInvitation = await db.invitation.findUnique({
+    where: {
+      email_teamId: {
+        email,
+        teamId: membership.team.id,
+      },
+    },
+  });
+
+  if (existingInvitation && existingInvitation.status === "PENDING") {
+    return {
+      success: false,
+      error: "There is already a pending invitation for that email.",
+    };
+  }
+
+  // Generate a secure random token
+  const tokenBytes = new Uint8Array(24);
+  crypto.getRandomValues(tokenBytes);
+  const token = Array.from(tokenBytes)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+
+  // Invitations expire in 7 days
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + 7);
+
+  try {
+    // If there is an existing invitation (expired), replace it
+    if (existingInvitation) {
+      await db.invitation.update({
+        where: { id: existingInvitation.id },
+        data: {
+          token,
+          role: "MEMBER",
+          status: "PENDING",
+          expiresAt,
+          acceptedAt: null,
+        },
+      });
+    } else {
+      await db.invitation.create({
+        data: {
+          email,
+          teamId: membership.team.id,
+          inviterId: session.user.id,
+          role: "MEMBER",
+          token,
+          status: "PENDING",
+          expiresAt,
+        },
+      });
+    }
+  } catch (error) {
+    console.error("Invitation creation failed:", error);
+    return {
+      success: false,
+      error: "Could not create the invitation. Please try again.",
+    };
+  }
+
+  revalidatePath(`/app/teams/${teamSlug}`);
+
+  return {
+    success: true,
+    message: `Invitation created for ${email}.`,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Get pending invitations for a team
+// ---------------------------------------------------------------------------
+
+export async function getPendingInvitations(
+  teamId: string
+): Promise<PendingInvitation[]> {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return [];
+  }
+
+  // Verify the user is a member of this team
+  const membership = await db.teamMember.findUnique({
+    where: {
+      userId_teamId: {
+        userId: session.user.id,
+        teamId,
+      },
+    },
+  });
+
+  if (!membership) {
+    return [];
+  }
+
+  const invitations = await db.invitation.findMany({
+    where: {
+      teamId,
+      status: "PENDING",
+      expiresAt: { gt: new Date() },
+    },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      email: true,
+      role: true,
+      token: true,
+      expiresAt: true,
+      createdAt: true,
+    },
+  });
+
+  return invitations;
+}
+
+// ---------------------------------------------------------------------------
+// Revoke an invitation
+// ---------------------------------------------------------------------------
+
+export async function revokeInvitation(invitationId: string) {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    throw new Error("You must be signed in.");
+  }
+
+  const invitation = await db.invitation.findUnique({
+    where: { id: invitationId },
+    include: { team: true },
+  });
+
+  if (!invitation) {
+    throw new Error("Invitation not found.");
+  }
+
+  // Verify the user has permission (owner/admin/supervisor)
+  const membership = await db.teamMember.findUnique({
+    where: {
+      userId_teamId: {
+        userId: session.user.id,
+        teamId: invitation.teamId,
+      },
+    },
+  });
+
+  if (
+    !membership ||
+    !["OWNER", "ADMIN", "SUPERVISOR"].includes(membership.role)
+  ) {
+    throw new Error("You do not have permission to revoke this invitation.");
+  }
+
+  await db.invitation.delete({
+    where: { id: invitationId },
+  });
+
+  revalidatePath(`/app/teams/${invitation.team.slug}`);
+}
+
+// ---------------------------------------------------------------------------
+// Accept an invitation
+// ---------------------------------------------------------------------------
+
+export type AcceptInvitationResult =
+  | { success: true; teamSlug: string }
+  | { success: false; error: string };
+
+export async function acceptInvitation(
+  token: string
+): Promise<AcceptInvitationResult> {
+  const session = await auth();
+
+  if (!session?.user?.id || !session.user.email) {
+    return { success: false, error: "You must be signed in." };
+  }
+
+  const invitation = await db.invitation.findUnique({
+    where: { token },
+    include: { team: true },
+  });
+
+  if (!invitation) {
+    return { success: false, error: "Invitation not found." };
+  }
+
+  if (invitation.status !== "PENDING") {
+    return {
+      success: false,
+      error: "This invitation has already been used or expired.",
+    };
+  }
+
+  if (invitation.expiresAt < new Date()) {
+    await db.invitation.update({
+      where: { id: invitation.id },
+      data: { status: "EXPIRED" },
+    });
+    return { success: false, error: "This invitation has expired." };
+  }
+
+  // The email must match the invitation (case-insensitive)
+  if (invitation.email.toLowerCase() !== session.user.email.toLowerCase()) {
+    return {
+      success: false,
+      error: `This invitation is for ${invitation.email}. Please sign in with that account.`,
+    };
+  }
+
+  // Check whether the user is already a member
+  const existing = await db.teamMember.findUnique({
+    where: {
+      userId_teamId: {
+        userId: session.user.id,
+        teamId: invitation.teamId,
+      },
+    },
+  });
+
+  if (existing) {
+    // Mark invitation as accepted anyway
+    await db.invitation.update({
+      where: { id: invitation.id },
+      data: { status: "ACCEPTED", acceptedAt: new Date() },
+    });
+    return { success: true, teamSlug: invitation.team.slug };
+  }
+
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.teamMember.create({
+        data: {
+          userId: session.user!.id!,
+          teamId: invitation.teamId,
+          role: invitation.role,
+        },
+      });
+
+      await tx.invitation.update({
+        where: { id: invitation.id },
+        data: { status: "ACCEPTED", acceptedAt: new Date() },
+      });
+    });
+  } catch (error) {
+    console.error("Failed to accept invitation:", error);
+    return {
+      success: false,
+      error: "Could not accept the invitation. Please try again.",
+    };
+  }
+
+  return { success: true, teamSlug: invitation.team.slug };
+}

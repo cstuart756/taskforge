@@ -1,7 +1,11 @@
 ﻿import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getTeamBySlug } from "@/lib/team-actions";
-
+import {
+  getTeamBySlug,
+  getPendingInvitations,
+} from "@/lib/team-actions";
+import InviteMemberForm from "@/components/team/invite-member-form";
+import InvitationList from "@/components/team/invitation-list";
 type PageProps = {
   params: Promise<{ slug: string }>;
 };
@@ -68,12 +72,14 @@ function formatDate(date: Date | null): string {
 }
 
 export default async function TeamPage({ params }: PageProps) {
-  const { slug } = await params;
+    const { slug } = await params;
   const team = await getTeamBySlug(slug);
 
   if (!team) {
     notFound();
   }
+
+  const invitations = await getPendingInvitations(team.id);
 
   const openTasks = team.tasks.filter((t) => t.status !== "DONE");
   const doneTasks = team.tasks.filter((t) => t.status === "DONE");
@@ -166,6 +172,27 @@ export default async function TeamPage({ params }: PageProps) {
               ))}
             </ul>
           )}
+        </div>
+        <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            Invitations
+            <span className="text-sm font-normal text-gray-500 ml-2">
+              {invitations.length}{" "}
+              {invitations.length === 1 ? "pending" : "pending"}
+            </span>
+          </h2>
+
+          <div className="mb-6">
+            <p className="text-sm text-gray-600 mb-3">
+              Invite someone by entering their email. You will get a link
+              to share with them.
+            </p>
+            <InviteMemberForm teamSlug={team.slug} />
+          </div>
+
+          <div className="border-t border-gray-100 pt-4">
+            <InvitationList invitations={invitations} />
+          </div>
         </div>
 
         <div className="bg-white border border-gray-200 rounded-lg p-6">

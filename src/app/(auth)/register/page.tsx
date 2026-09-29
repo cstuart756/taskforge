@@ -6,6 +6,11 @@ export const metadata: Metadata = {
   description: "Create your TaskForge account.",
 };
 
-export default function RegisterPage() {
-  return <RegisterForm />;
+type PageProps = {
+  searchParams: Promise<{ callbackUrl?: string }>;
+};
+
+export default async function RegisterPage({ searchParams }: PageProps) {
+  const { callbackUrl } = await searchParams;
+  return <RegisterForm callbackUrl={callbackUrl} />;
 }

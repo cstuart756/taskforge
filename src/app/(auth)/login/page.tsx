@@ -6,6 +6,11 @@ export const metadata: Metadata = {
   description: "Log in to your TaskForge account.",
 };
 
-export default function LoginPage() {
-  return <LoginForm />;
+type PageProps = {
+  searchParams: Promise<{ callbackUrl?: string }>;
+};
+
+export default async function LoginPage({ searchParams }: PageProps) {
+  const { callbackUrl } = await searchParams;
+  return <LoginForm callbackUrl={callbackUrl} />;
 }

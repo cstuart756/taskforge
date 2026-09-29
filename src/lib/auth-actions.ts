@@ -134,8 +134,13 @@ export async function registerUser(
     }
   }
 
-  // Redirect to the dashboard after successful registration
-  redirect("/app");
+  // Redirect to the callback URL if provided, otherwise to the dashboard
+  const callbackUrl = formData.get("callbackUrl");
+  const target =
+    typeof callbackUrl === "string" && callbackUrl.startsWith("/")
+      ? callbackUrl
+      : "/app";
+  redirect(target);
 }
 
 // ---------------------------------------------------------------------------
@@ -178,8 +183,13 @@ export async function loginUser(
     throw error;
   }
 
-  // Redirect to the dashboard after successful login
-  redirect("/app");
+  // Redirect to the callback URL if provided, otherwise to the dashboard
+  const callbackUrl = formData.get("callbackUrl");
+  const target =
+    typeof callbackUrl === "string" && callbackUrl.startsWith("/")
+      ? callbackUrl
+      : "/app";
+  redirect(target);
 }
 // ---------------------------------------------------------------------------
 // Logout server action

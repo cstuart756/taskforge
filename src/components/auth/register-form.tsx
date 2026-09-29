@@ -6,7 +6,11 @@ import { registerUser, type AuthActionResult } from "@/lib/auth-actions";
 
 const initialState: AuthActionResult | undefined = undefined;
 
-export default function RegisterForm() {
+type Props = {
+  callbackUrl?: string;
+};
+
+export default function RegisterForm({ callbackUrl }: Props) {
   const [state, formAction, isPending] = useActionState(
     registerUser,
     initialState
@@ -31,6 +35,9 @@ export default function RegisterForm() {
       )}
 
       <form action={formAction} className="space-y-4">
+                {callbackUrl && (
+          <input type="hidden" name="callbackUrl" value={callbackUrl} />
+        )}
         <div>
           <label
             htmlFor="name"

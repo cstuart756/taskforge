@@ -4,9 +4,13 @@ import { useActionState } from "react";
 import Link from "next/link";
 import { loginUser, type AuthActionResult } from "@/lib/auth-actions";
 
+type Props = {
+  callbackUrl?: string;
+};
+
 const initialState: AuthActionResult | undefined = undefined;
 
-export default function LoginForm() {
+export default function LoginForm({ callbackUrl }: Props) {
   const [state, formAction, isPending] = useActionState(
     loginUser,
     initialState
@@ -24,8 +28,11 @@ export default function LoginForm() {
         </div>
       )}
 
-
       <form action={formAction} className="space-y-4">
+        {callbackUrl && (
+          <input type="hidden" name="callbackUrl" value={callbackUrl} />
+        )}
+
         <div>
           <label
             htmlFor="email"
