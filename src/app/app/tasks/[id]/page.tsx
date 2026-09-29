@@ -3,6 +3,8 @@ import Link from "next/link";
 import { getTaskById } from "@/lib/task-actions";
 import TaskStatusButton from "@/components/task/task-status-button";
 import DeleteTaskButton from "@/components/task/delete-task-button";
+import CommentForm from "@/components/comment/comment-form";
+import { getCommentsForTask } from "@/lib/comment-actions";
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -70,14 +72,31 @@ function formatDateTime(date: Date): string {
     minute: "2-digit",
   });
 }
+function timeAgo(date: Date): string {
+  const now = new Date();
+  const then = new Date(date);
+  const seconds = Math.floor((now.getTime() - then.getTime()) / 1000);
+
+  if (seconds < 60) return "just now";
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
+  return then.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
 
 export default async function TaskDetailPage({ params }: PageProps) {
   const { id } = await params;
   const task = await getTaskById(id);
 
-  if (!task) {
+    if (!task) {
     notFound();
   }
+
+  const comments = await getCommentsForTask(task.id);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -164,7 +183,7 @@ export default async function TaskDetailPage({ params }: PageProps) {
           </dl>
         </div>
 
-                        <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-3 mb-6">
           <TaskStatusButton taskId={task.id} status={task.status} />
           <Link
             href={`/app/tasks/${task.id}/edit`}
@@ -174,6 +193,45 @@ export default async function TaskDetailPage({ params }: PageProps) {
           </Link>
           <DeleteTaskButton taskId={task.id} taskTitle={task.title} />
         </div>
+
+        <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            Comments
+            <span className="text-sm font-normal text-gray-500 ml-2">
+              {comments.length}{" "}
+              {comments.length === 1 ? "comment" : "comments"}
+            </span>
+          </h2>
+
+          {comments.length === 0 ? (
+            <p className="text-gray-500 text-sm mb-4">
+              No comments yet. Start the discussion below.
+            </p>
+          ) : (
+            <ul className="space-y-4 mb-6">
+              {comments.map((comment) => (
+                <li
+                  key={comment.id}
+                  className="border-l-2 border-gray-200 pl-4"
+                >
+                  <div className="flex items-baseline gap-2 mb-1">
+                    <span className="text-sm font-medium text-gray-900">
+                      {comment.author.name ?? comment.author.email}
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      {timeAgo(comment.createdAt)}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                    {comment.body}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <CommentForm taskId={task.id} />
       </div>
     </div>
   );
