@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
@@ -34,6 +35,10 @@ const CreateTaskSchema = z.object({
     .transform((v) => (v === "" || v === "unassigned" ? undefined : v)),
 });
 
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
 export type TaskActionResult =
   | { success: true; message: string }
   | {
@@ -41,6 +46,33 @@ export type TaskActionResult =
       error: string;
       fieldErrors?: Record<string, string[] | undefined>;
     };
+
+export type TaskDetail = {
+  id: string;
+  title: string;
+  description: string | null;
+  status: "OPEN" | "IN_PROGRESS" | "DONE";
+  priority: "LOW" | "NORMAL" | "HIGH";
+  dueDate: Date | null;
+  completedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  team: {
+    id: string;
+    name: string;
+    slug: string;
+  };
+  creator: {
+    id: string;
+    name: string | null;
+    email: string;
+  };
+  assignee: {
+    id: string;
+    name: string | null;
+    email: string;
+  } | null;
+};
 
 // ---------------------------------------------------------------------------
 // Create a task in a team
@@ -57,7 +89,6 @@ export async function createTask(
     return { success: false, error: "You must be signed in." };
   }
 
-  // Verify the user is a member of this team
   const membership = await db.teamMember.findFirst({
     where: {
       userId: session.user.id,
@@ -91,7 +122,6 @@ export async function createTask(
 
   const { title, description, dueDate, priority, assigneeId } = parsed.data;
 
-  // If an assignee was selected, verify they are a member of the team
   if (assigneeId) {
     const assigneeIsMember = await db.teamMember.findUnique({
       where: {
@@ -132,4 +162,102 @@ export async function createTask(
   }
 
   redirect(`/app/teams/${teamSlug}`);
+}
+
+// ---------------------------------------------------------------------------
+// Get a single task by ID (only if the user is a member of its team)
+// ---------------------------------------------------------------------------
+
+export async function getTaskById(
+  taskId: string
+): Promise<TaskDetail | null> {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return null;
+  }
+
+  const task = await db.task.findFirst({
+    where: {
+      id: taskId,
+      deletedAt: null,
+      team: {
+        members: {
+          some: { userId: session.user.id },
+        },
+      },
+    },
+    include: {
+      team: {
+        select: { id: true, name: true, slug: true },
+      },
+      creator: {
+        select: { id: true, name: true, email: true },
+      },
+      assignee: {
+        select: { id: true, name: true, email: true },
+      },
+    },
+  });
+
+  if (!task) {
+    return null;
+  }
+
+  return {
+    id: task.id,
+    title: task.title,
+    description: task.description,
+    status: task.status,
+    priority: task.priority,
+    dueDate: task.dueDate,
+    completedAt: task.completedAt,
+    createdAt: task.createdAt,
+    updatedAt: task.updatedAt,
+    team: task.team,
+    creator: task.creator,
+    assignee: task.assignee,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Toggle a task's status between OPEN and DONE
+// ---------------------------------------------------------------------------
+
+export async function toggleTaskStatus(taskId: string) {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    throw new Error("You must be signed in.");
+  }
+
+  const task = await db.task.findFirst({
+    where: {
+      id: taskId,
+      deletedAt: null,
+      team: {
+        members: {
+          some: { userId: session.user.id },
+        },
+      },
+    },
+    select: { id: true, status: true, teamId: true },
+  });
+
+  if (!task) {
+    throw new Error("Task not found or you do not have access.");
+  }
+
+  const isDone = task.status === "DONE";
+
+  await db.task.update({
+    where: { id: taskId },
+    data: {
+      status: isDone ? "OPEN" : "DONE",
+      completedAt: isDone ? null : new Date(),
+    },
+  });
+
+  revalidatePath("/app");
+  revalidatePath(`/app/tasks/${taskId}`);
 }
