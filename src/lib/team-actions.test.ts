@@ -10,6 +10,11 @@ describe("CreateTeamSchema", () => {
     expect(result.success).toBe(true);
   });
 
+  it("rejects a missing name", () => {
+    const result = CreateTeamSchema.safeParse({});
+    expect(result.success).toBe(false);
+  });
+
   it("rejects a name shorter than 2 characters", () => {
     const result = CreateTeamSchema.safeParse({ name: "A" });
     expect(result.success).toBe(false);
@@ -39,6 +44,11 @@ describe("CreateInvitationSchema", () => {
     expect(result.success).toBe(true);
   });
 
+  it("rejects a missing email", () => {
+    const result = CreateInvitationSchema.safeParse({});
+    expect(result.success).toBe(false);
+  });
+
   it("rejects an invalid email", () => {
     const result = CreateInvitationSchema.safeParse({
       email: "not-an-email",
@@ -46,7 +56,7 @@ describe("CreateInvitationSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("rejects a missing email", () => {
+  it("rejects an empty email", () => {
     const result = CreateInvitationSchema.safeParse({ email: "" });
     expect(result.success).toBe(false);
   });

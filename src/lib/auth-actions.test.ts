@@ -13,6 +13,14 @@ describe("RegisterSchema", () => {
 
   it("rejects a missing name", () => {
     const result = RegisterSchema.safeParse({
+      email: "alice@example.com",
+      password: "password123",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects an empty name", () => {
+    const result = RegisterSchema.safeParse({
       name: "",
       email: "alice@example.com",
       password: "password123",
@@ -29,11 +37,27 @@ describe("RegisterSchema", () => {
     expect(result.success).toBe(false);
   });
 
+  it("rejects a missing email", () => {
+    const result = RegisterSchema.safeParse({
+      name: "Alice",
+      password: "password123",
+    });
+    expect(result.success).toBe(false);
+  });
+
   it("rejects an invalid email", () => {
     const result = RegisterSchema.safeParse({
       name: "Alice",
       email: "not-an-email",
       password: "password123",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a missing password", () => {
+    const result = RegisterSchema.safeParse({
+      name: "Alice",
+      email: "alice@example.com",
     });
     expect(result.success).toBe(false);
   });
@@ -55,7 +79,7 @@ describe("RegisterSchema", () => {
     });
     expect(result.success).toBe(false);
   });
- 
+
   it("accepts a password of exactly 8 characters", () => {
     const result = RegisterSchema.safeParse({
       name: "Alice",
@@ -75,10 +99,24 @@ describe("LoginSchema", () => {
     expect(result.success).toBe(true);
   });
 
+  it("rejects a missing email", () => {
+    const result = LoginSchema.safeParse({
+      password: "password123",
+    });
+    expect(result.success).toBe(false);
+  });
+
   it("rejects an invalid email", () => {
     const result = LoginSchema.safeParse({
       email: "not-an-email",
       password: "password123",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a missing password", () => {
+    const result = LoginSchema.safeParse({
+      email: "alice@example.com",
     });
     expect(result.success).toBe(false);
   });
