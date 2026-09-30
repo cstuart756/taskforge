@@ -10,7 +10,7 @@ import { db } from "@/lib/db";
 // Validation schemas
 // ---------------------------------------------------------------------------
 
-const CreateTaskSchema = z.object({
+export const CreateTaskSchema = z.object({
   title: z
     .string()
     .min(1, "Title is required")
@@ -35,7 +35,7 @@ const CreateTaskSchema = z.object({
     .transform((v) => (v === "" || v === "unassigned" ? undefined : v)),
 });
 
-const UpdateTaskSchema = CreateTaskSchema;
+export const UpdateTaskSchema = CreateTaskSchema;
 
 // ---------------------------------------------------------------------------
 // Types

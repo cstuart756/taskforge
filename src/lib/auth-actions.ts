@@ -11,7 +11,7 @@ import { uniqueSlug } from "@/lib/slug";
 // Validation schemas (Zod 4 syntax)
 // ---------------------------------------------------------------------------
 
-const RegisterSchema = z.object({
+export const RegisterSchema = z.object({
   name: z
     .string()
     .min(1, "Name is required")
@@ -23,7 +23,7 @@ const RegisterSchema = z.object({
     .max(72, "Password must be 72 characters or fewer"),
 });
 
-const LoginSchema = z.object({
+export const LoginSchema = z.object({
   email: z.email("Please enter a valid email address"),
   password: z.string().min(1, "Password is required"),
 });

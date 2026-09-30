@@ -63,11 +63,15 @@ export type TeamActionResult =
 // Validation schemas
 // ---------------------------------------------------------------------------
 
-const CreateTeamSchema = z.object({
+export const CreateTeamSchema = z.object({
   name: z
     .string()
     .min(2, "Team name must be at least 2 characters")
     .max(60, "Team name must be 60 characters or fewer"),
+});
+
+export const CreateInvitationSchema = z.object({
+  email: z.email("Please enter a valid email address"),
 });
 
 // ---------------------------------------------------------------------------
@@ -118,7 +122,6 @@ export async function getTeamBySlug(
     return null;
   }
 
-  // Only return the team if the signed-in user is a member
   const membership = await db.teamMember.findFirst({
     where: {
       userId: session.user.id,
@@ -265,10 +268,6 @@ export type InvitationResult =
       fieldErrors?: Record<string, string[] | undefined>;
     };
 
-const CreateInvitationSchema = z.object({
-  email: z.email("Please enter a valid email address"),
-});
-
 // ---------------------------------------------------------------------------
 // Create an invitation for a team
 // ---------------------------------------------------------------------------
@@ -284,7 +283,6 @@ export async function createInvitation(
     return { success: false, error: "You must be signed in." };
   }
 
-  // Verify the user is a supervisor/admin/owner of this team
   const membership = await db.teamMember.findFirst({
     where: {
       userId: session.user.id,
@@ -315,7 +313,6 @@ export async function createInvitation(
 
   const email = parsed.data.email.toLowerCase();
 
-  // Check whether the user is already a member
   const existingUser = await db.user.findUnique({
     where: { email },
   });
@@ -338,7 +335,6 @@ export async function createInvitation(
     }
   }
 
-  // Check for an existing pending invitation
   const existingInvitation = await db.invitation.findUnique({
     where: {
       email_teamId: {
@@ -355,19 +351,16 @@ export async function createInvitation(
     };
   }
 
-  // Generate a secure random token
   const tokenBytes = new Uint8Array(24);
   crypto.getRandomValues(tokenBytes);
   const token = Array.from(tokenBytes)
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
 
-  // Invitations expire in 7 days
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 7);
 
   try {
-    // If there is an existing invitation (expired), replace it
     if (existingInvitation) {
       await db.invitation.update({
         where: { id: existingInvitation.id },
@@ -421,7 +414,6 @@ export async function getPendingInvitations(
     return [];
   }
 
-  // Verify the user is a member of this team
   const membership = await db.teamMember.findUnique({
     where: {
       userId_teamId: {
@@ -475,7 +467,6 @@ export async function revokeInvitation(invitationId: string) {
     throw new Error("Invitation not found.");
   }
 
-  // Verify the user has permission (owner/admin/supervisor)
   const membership = await db.teamMember.findUnique({
     where: {
       userId_teamId: {
@@ -540,7 +531,6 @@ export async function acceptInvitation(
     return { success: false, error: "This invitation has expired." };
   }
 
-  // The email must match the invitation (case-insensitive)
   if (invitation.email.toLowerCase() !== session.user.email.toLowerCase()) {
     return {
       success: false,
@@ -548,7 +538,6 @@ export async function acceptInvitation(
     };
   }
 
-  // Check whether the user is already a member
   const existing = await db.teamMember.findUnique({
     where: {
       userId_teamId: {
@@ -559,7 +548,6 @@ export async function acceptInvitation(
   });
 
   if (existing) {
-    // Mark invitation as accepted anyway
     await db.invitation.update({
       where: { id: invitation.id },
       data: { status: "ACCEPTED", acceptedAt: new Date() },
