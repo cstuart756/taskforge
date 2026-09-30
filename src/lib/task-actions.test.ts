@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { CreateTaskSchema } from "@/lib/task-actions";
+import { CreateTaskSchema } from "@/lib/schemas";
 
 describe("CreateTaskSchema", () => {
   const validInput = {

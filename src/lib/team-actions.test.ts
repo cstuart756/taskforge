@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
+
 import {
   CreateTeamSchema,
   CreateInvitationSchema,
-} from "@/lib/team-actions";
-
+} from "@/lib/schemas";
 describe("CreateTeamSchema", () => {
   it("accepts a valid team name", () => {
     const result = CreateTeamSchema.safeParse({ name: "Marketing Team" });
