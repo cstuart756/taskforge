@@ -1,0 +1,14 @@
+# Development and test artifacts not needed in production
+tests/
+playwright.config.ts
+.github/
+docs/
+*.md
+.env.example
+.env.local
+.gitignore
+.slugignore
+
+# Build caches (Heroku rebuilds these)
+.next/
+node_modules/
