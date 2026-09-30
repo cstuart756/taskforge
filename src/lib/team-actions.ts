@@ -2,11 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { uniqueSlug } from "@/lib/slug";
 import type { TeamRole } from "@/generated/prisma/client";
+import { CreateTeamSchema, CreateInvitationSchema } from "@/lib/schemas";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -59,20 +59,26 @@ export type TeamActionResult =
       fieldErrors?: Record<string, string[] | undefined>;
     };
 
-// ---------------------------------------------------------------------------
-// Validation schemas
-// ---------------------------------------------------------------------------
+export type PendingInvitation = {
+  id: string;
+  email: string;
+  role: TeamRole;
+  token: string;
+  expiresAt: Date;
+  createdAt: Date;
+};
 
-export const CreateTeamSchema = z.object({
-  name: z
-    .string()
-    .min(2, "Team name must be at least 2 characters")
-    .max(60, "Team name must be 60 characters or fewer"),
-});
+export type InvitationResult =
+  | { success: true; message: string }
+  | {
+      success: false;
+      error: string;
+      fieldErrors?: Record<string, string[] | undefined>;
+    };
 
-export const CreateInvitationSchema = z.object({
-  email: z.email("Please enter a valid email address"),
-});
+export type AcceptInvitationResult =
+  | { success: true; teamSlug: string }
+  | { success: false; error: string };
 
 // ---------------------------------------------------------------------------
 // Get the teams the signed-in user belongs to
@@ -246,27 +252,6 @@ export async function createTeam(
   revalidatePath("/app");
   redirect(`/app/teams/${createdSlug}`);
 }
-
-// ---------------------------------------------------------------------------
-// Invitations
-// ---------------------------------------------------------------------------
-
-export type PendingInvitation = {
-  id: string;
-  email: string;
-  role: TeamRole;
-  token: string;
-  expiresAt: Date;
-  createdAt: Date;
-};
-
-export type InvitationResult =
-  | { success: true; message: string }
-  | {
-      success: false;
-      error: string;
-      fieldErrors?: Record<string, string[] | undefined>;
-    };
 
 // ---------------------------------------------------------------------------
 // Create an invitation for a team
@@ -493,10 +478,6 @@ export async function revokeInvitation(invitationId: string) {
 // ---------------------------------------------------------------------------
 // Accept an invitation
 // ---------------------------------------------------------------------------
-
-export type AcceptInvitationResult =
-  | { success: true; teamSlug: string }
-  | { success: false; error: string };
 
 export async function acceptInvitation(
   token: string

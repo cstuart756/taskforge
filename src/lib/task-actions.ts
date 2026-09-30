@@ -2,40 +2,9 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
-
-// ---------------------------------------------------------------------------
-// Validation schemas
-// ---------------------------------------------------------------------------
-
-export const CreateTaskSchema = z.object({
-  title: z
-    .string()
-    .min(1, "Title is required")
-    .max(200, "Title must be 200 characters or fewer"),
-  description: z
-    .string()
-    .max(2000, "Description must be 2000 characters or fewer")
-    .optional()
-    .transform((v) => (v === "" ? undefined : v)),
-  dueDate: z
-    .string()
-    .optional()
-    .transform((v) => (v === "" ? undefined : v))
-    .refine(
-      (v) => v === undefined || !isNaN(Date.parse(v)),
-      "Invalid due date"
-    ),
-  priority: z.enum(["LOW", "NORMAL", "HIGH"]),
-  assigneeId: z
-    .string()
-    .optional()
-    .transform((v) => (v === "" || v === "unassigned" ? undefined : v)),
-});
-
-export const UpdateTaskSchema = CreateTaskSchema;
+import { CreateTaskSchema, UpdateTaskSchema } from "@/lib/schemas";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -74,6 +43,32 @@ export type TaskDetail = {
     name: string | null;
     email: string;
   } | null;
+};
+
+export type TaskListItem = {
+  id: string;
+  title: string;
+  status: "OPEN" | "IN_PROGRESS" | "DONE";
+  priority: "LOW" | "NORMAL" | "HIGH";
+  dueDate: Date | null;
+  team: {
+    id: string;
+    name: string;
+    slug: string;
+  };
+  assignee: {
+    id: string;
+    name: string | null;
+    email: string;
+  } | null;
+};
+
+export type TaskMetrics = {
+  open: number;
+  inProgress: number;
+  done: number;
+  overdue: number;
+  total: number;
 };
 
 // ---------------------------------------------------------------------------
@@ -399,27 +394,10 @@ export async function softDeleteTask(taskId: string) {
 
   redirect(`/app/teams/${task.team.slug}`);
 }
+
 // ---------------------------------------------------------------------------
 // Get all tasks across every team the user belongs to
 // ---------------------------------------------------------------------------
-
-export type TaskListItem = {
-  id: string;
-  title: string;
-  status: "OPEN" | "IN_PROGRESS" | "DONE";
-  priority: "LOW" | "NORMAL" | "HIGH";
-  dueDate: Date | null;
-  team: {
-    id: string;
-    name: string;
-    slug: string;
-  };
-  assignee: {
-    id: string;
-    name: string | null;
-    email: string;
-  } | null;
-};
 
 export async function getAllTasksForUser(
   statusFilter?: "OPEN" | "IN_PROGRESS" | "DONE"
@@ -468,14 +446,6 @@ export async function getAllTasksForUser(
 // ---------------------------------------------------------------------------
 // Task metrics for the dashboard
 // ---------------------------------------------------------------------------
-
-export type TaskMetrics = {
-  open: number;
-  inProgress: number;
-  done: number;
-  overdue: number;
-  total: number;
-};
 
 export async function getTaskMetrics(): Promise<TaskMetrics> {
   const session = await auth();

@@ -1,32 +1,11 @@
 "use server";
-
+import { RegisterSchema, LoginSchema } from "@/lib/schemas";
 import { redirect } from "next/navigation";
-import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { AuthError } from "next-auth";
 import { db } from "@/lib/db";
 import { signIn, signOut } from "@/auth";
 import { uniqueSlug } from "@/lib/slug";
-// ---------------------------------------------------------------------------
-// Validation schemas (Zod 4 syntax)
-// ---------------------------------------------------------------------------
-
-export const RegisterSchema = z.object({
-  name: z
-    .string()
-    .min(1, "Name is required")
-    .max(80, "Name must be 80 characters or fewer"),
-  email: z.email("Please enter a valid email address"),
-  password: z
-    .string()
-    .min(8, "Password must be at least 8 characters")
-    .max(72, "Password must be 72 characters or fewer"),
-});
-
-export const LoginSchema = z.object({
-  email: z.email("Please enter a valid email address"),
-  password: z.string().min(1, "Password is required"),
-});
 
 // ---------------------------------------------------------------------------
 // Shared result type
@@ -78,7 +57,6 @@ export async function registerUser(
 
   const passwordHash = await bcrypt.hash(password, 12);
 
-  // Generate a unique slug for the user's default team
   const teamName = `${name}'s Team`;
   const teamSlug = await uniqueSlug(teamName, async (candidate) => {
     const found = await db.team.findUnique({ where: { slug: candidate } });
@@ -86,8 +64,6 @@ export async function registerUser(
   });
 
   try {
-    // Create the user, their default team, and their membership
-    // in a single transaction so nothing can be partially created.
     await db.$transaction(async (tx) => {
       const newUser = await tx.user.create({
         data: {
@@ -120,7 +96,6 @@ export async function registerUser(
     };
   }
 
-  // Auto sign in after registration
   try {
     await signIn("credentials", {
       email: lowerEmail,
@@ -128,13 +103,11 @@ export async function registerUser(
       redirect: false,
     });
   } catch (error) {
-    // Registration succeeded; sign-in failure is not critical here
     if (error instanceof AuthError) {
       console.error("Auto sign-in after registration failed:", error.type);
     }
   }
 
-  // Redirect to the callback URL if provided, otherwise to the dashboard
   const callbackUrl = formData.get("callbackUrl");
   const target =
     typeof callbackUrl === "string" && callbackUrl.startsWith("/")
@@ -174,7 +147,6 @@ export async function loginUser(
     });
   } catch (error) {
     if (error instanceof AuthError) {
-      // Do not reveal whether the email or password was wrong
       return {
         success: false,
         error: "Invalid email or password.",
@@ -183,7 +155,6 @@ export async function loginUser(
     throw error;
   }
 
-  // Redirect to the callback URL if provided, otherwise to the dashboard
   const callbackUrl = formData.get("callbackUrl");
   const target =
     typeof callbackUrl === "string" && callbackUrl.startsWith("/")
@@ -191,6 +162,7 @@ export async function loginUser(
       : "/app";
   redirect(target);
 }
+
 // ---------------------------------------------------------------------------
 // Logout server action
 // ---------------------------------------------------------------------------
