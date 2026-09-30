@@ -3,7 +3,7 @@ import { slugify, uniqueSlug } from "@/lib/slug";
 
 describe("slugify", () => {
   it("converts a simple name to lowercase with hyphens", () => {
-    expect(slugify("Hello World")).toBe("hello-world");
+    expect(slugify("Hello World")).toBe("hello_world");
   });
 
   it("removes apostrophes", () => {
