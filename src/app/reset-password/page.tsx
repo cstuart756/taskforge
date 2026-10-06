@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
@@ -11,23 +11,23 @@ function ResetPasswordForm() {
 
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
-  const [error, setError] = useState("");
+  const [submitError, setSubmitError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (!token) setError("Missing reset token. Please request a new link.");
-  }, [token]);
+  // Derived during render — no effect needed
+  const tokenError = token ? "" : "Missing reset token. Please request a new link.";
+  const error = tokenError || submitError;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError("");
+    setSubmitError("");
 
     if (password.length < 8) {
-      setError("Password must be at least 8 characters.");
+      setSubmitError("Password must be at least 8 characters.");
       return;
     }
     if (password !== confirm) {
-      setError("Passwords do not match.");
+      setSubmitError("Passwords do not match.");
       return;
     }
 
@@ -42,7 +42,7 @@ function ResetPasswordForm() {
     const data = await res.json();
 
     if (!res.ok) {
-      setError(data.error || "Something went wrong.");
+      setSubmitError(data.error || "Something went wrong.");
       setLoading(false);
       return;
     }
