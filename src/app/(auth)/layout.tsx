@@ -1,4 +1,5 @@
-﻿export default function AuthLayout({
+﻿import SiteFooter from "@/components/layout/site-footer";
+export default function AuthLayout({
   children,
 }: {
   children: React.ReactNode;
@@ -14,6 +15,8 @@
         </div>
         {children}
       </div>
+
+      <SiteFooter />
     </div>
   );
 }
