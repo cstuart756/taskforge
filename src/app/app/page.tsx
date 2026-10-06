@@ -4,6 +4,7 @@ import Link from "next/link";
 import { logoutUser } from "@/lib/auth-actions";
 import { getUserTeams } from "@/lib/team-actions";
 import { getTaskMetrics } from "@/lib/task-actions";
+import SiteFooter from "@/components/layout/site-footer";
 
 function formatRole(role: string): string {
   return role.charAt(0) + role.slice(1).toLowerCase();
@@ -143,6 +144,8 @@ export default async function AppDashboardPage() {
           </ul>
         )}
       </div>
+
+      <SiteFooter />
     </div>
   );
 }

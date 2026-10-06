@@ -1,4 +1,5 @@
 import Link from "next/link";
+import SiteFooter from "@/components/layout/site-footer";
 
 export default function HomePage() {
   return (
@@ -48,6 +49,8 @@ export default function HomePage() {
           </div>
         </div>
       </main>
+
+      <SiteFooter />
     </div>
   );
 }
