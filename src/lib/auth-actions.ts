@@ -1,7 +1,7 @@
 "use server";
 import { RegisterSchema, LoginSchema } from "@/lib/schemas";
 import { redirect } from "next/navigation";
-import bcrypt from "bcryptjs";
+import { hashPassword } from "@/lib/password";
 import { AuthError } from "next-auth";
 import { db } from "@/lib/db";
 import { signIn, signOut } from "@/auth";
@@ -55,7 +55,7 @@ export async function registerUser(
     };
   }
 
-  const passwordHash = await bcrypt.hash(password, 12);
+ const passwordHash = await hashPassword(password);
 
   const teamName = `${name}'s Team`;
   const teamSlug = await uniqueSlug(teamName, async (candidate) => {

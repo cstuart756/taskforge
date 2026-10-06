@@ -7,10 +7,10 @@ export const metadata: Metadata = {
 };
 
 type PageProps = {
-  searchParams: Promise<{ callbackUrl?: string }>;
+  searchParams: Promise<{ callbackUrl?: string; reset?: string }>;
 };
 
 export default async function LoginPage({ searchParams }: PageProps) {
-  const { callbackUrl } = await searchParams;
-  return <LoginForm callbackUrl={callbackUrl} />;
+  const { callbackUrl, reset } = await searchParams;
+  return <LoginForm callbackUrl={callbackUrl} reset={reset} />;
 }
