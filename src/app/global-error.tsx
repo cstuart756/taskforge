@@ -18,6 +18,11 @@ export default function GlobalError({ error, reset }: Props) {
             <p className="text-gray-600 mb-8">
               A critical error occurred. Please reload the page.
             </p>
+            {error.digest && (
+              <p className="text-xs text-gray-400 mb-6 font-mono">
+                Reference: {error.digest}
+              </p>
+            )}
             <button
               type="button"
               onClick={reset}

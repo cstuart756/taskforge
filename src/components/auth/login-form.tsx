@@ -6,11 +6,12 @@ import { loginUser, type AuthActionResult } from "@/lib/auth-actions";
 
 type Props = {
   callbackUrl?: string;
+  reset?: string;
 };
 
 const initialState: AuthActionResult | undefined = undefined;
 
-export default function LoginForm({ callbackUrl }: Props) {
+export default function LoginForm({ callbackUrl, reset }: Props) {
   const [state, formAction, isPending] = useActionState(
     loginUser,
     initialState
@@ -21,6 +22,12 @@ export default function LoginForm({ callbackUrl }: Props) {
       <h2 className="text-xl font-semibold text-gray-900 mb-6">
         Welcome back
       </h2>
+
+      {reset === "success" && (
+        <div className="mb-4 rounded-md bg-green-50 border border-green-200 p-3 text-sm text-green-800">
+          Your password has been reset. Please log in with your new password.
+        </div>
+      )}
 
       {state?.success === false && (
         <div className="mb-4 rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-800">
@@ -75,6 +82,15 @@ export default function LoginForm({ callbackUrl }: Props) {
               {state.fieldErrors.password[0]}
             </p>
           )}
+        </div>
+
+        <div className="text-right text-sm">
+          <Link
+            href="/forgot-password"
+            className="text-blue-600 hover:underline"
+          >
+            Forgot password?
+          </Link>
         </div>
 
         <button
