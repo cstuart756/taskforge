@@ -1,7 +1,5 @@
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 const FROM = process.env.EMAIL_FROM || "onboarding@resend.dev";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
@@ -9,6 +7,16 @@ export async function sendPasswordResetEmail(
   to: string,
   rawToken: string
 ): Promise<void> {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    console.error("RESEND_API_KEY is not set — cannot send email");
+    throw new Error("Email service is not configured");
+  }
+
+  // Created lazily so the module can be imported during CI builds
+  // without environment variables present.
+  const resend = new Resend(apiKey);
+
   const resetUrl = `${APP_URL}/reset-password?token=${rawToken}`;
 
   const { error } = await resend.emails.send({
