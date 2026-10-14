@@ -6,7 +6,13 @@ import { authConfig } from "@/auth.config";
 import { verifyPassword } from "@/lib/password";
 import { checkRateLimit, limiter } from "@/lib/rate-limit";
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+export const {
+  handlers,
+  auth,
+  signIn,
+  signOut,
+  unstable_update,
+} = NextAuth({
   ...authConfig,
   adapter: PrismaAdapter(db),
   providers: [
