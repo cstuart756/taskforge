@@ -18,8 +18,20 @@ export default function ForgotPasswordPage() {
       body: JSON.stringify({ email }),
     });
 
+    // Try to read the error message from the API
+    let message = "Something went wrong. Please try again.";
     if (!res.ok) {
-      setError("Something went wrong. Please try again.");
+      try {
+        const data = await res.json();
+        if (data?.error) message = data.error;
+        if (data?.retryAfter) {
+          const mins = Math.ceil(data.retryAfter / 60);
+          message += ` Try again in about ${mins} minute${mins === 1 ? "" : "s"}.`;
+        }
+      } catch {
+        // fall through with the default message
+      }
+      setError(message);
       return;
     }
 
@@ -77,9 +89,7 @@ export default function ForgotPasswordPage() {
             />
           </div>
 
-          {error && (
-            <p className="text-sm text-red-600">{error}</p>
-          )}
+          {error && <p className="text-sm text-red-600">{error}</p>}
 
           <button
             type="submit"
