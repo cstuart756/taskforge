@@ -2,9 +2,22 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { validateResetToken, consumeResetToken } from "@/lib/password-reset";
 import { hashPassword } from "@/lib/password";
+import { getClientIp, checkRateLimit, limiter } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
   try {
+    const ip = getClientIp(request);
+
+    const rateCheck = await checkRateLimit(
+      limiter.resetPassword(),
+      `reset:${ip}`,
+      "Too many reset attempts. Please try again later."
+    );
+
+    if (!rateCheck.success) {
+      return rateCheck.response;
+    }
+
     const { token, password } = await request.json();
 
     if (!token || typeof token !== "string") {

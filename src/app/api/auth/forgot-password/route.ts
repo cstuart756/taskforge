@@ -2,9 +2,22 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { createPasswordResetToken } from "@/lib/password-reset";
 import { sendPasswordResetEmail } from "@/lib/email";
+import { getClientIp, checkRateLimit, limiter } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
   try {
+    const ip = getClientIp(request);
+
+    const rateCheck = await checkRateLimit(
+      limiter.forgotPassword(),
+      `forgot:${ip}`,
+      "Too many password reset requests. Please try again later."
+    );
+
+    if (!rateCheck.success) {
+      return rateCheck.response;
+    }
+
     const { email } = await request.json();
 
     if (!email || typeof email !== "string") {
