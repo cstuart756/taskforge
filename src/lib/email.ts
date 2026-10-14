@@ -57,3 +57,51 @@ export async function sendPasswordResetEmail(
     throw new Error("Failed to send reset email");
   }
 }
+export async function sendVerificationEmail(
+  to: string,
+  rawToken: string
+): Promise<void> {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    console.error("RESEND_API_KEY is not set — cannot send verification email");
+    throw new Error("Email service is not configured");
+  }
+
+  const resend = new Resend(apiKey);
+
+  const verifyUrl = `${APP_URL}/api/auth/verify-email?token=${rawToken}`;
+
+  const { error } = await resend.emails.send({
+    from: FROM,
+    to,
+    subject: "Verify your TaskForge email address",
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #1f2937;">Welcome to TaskForge</h2>
+        <p style="color: #4b5563; line-height: 1.6;">
+          Thanks for signing up. Please confirm your email address to activate your account.
+        </p>
+        <p style="margin: 32px 0;">
+          <a href="${verifyUrl}"
+             style="background-color: #2563eb; color: white; padding: 12px 24px;
+                    text-decoration: none; border-radius: 6px; display: inline-block;">
+            Verify email
+          </a>
+        </p>
+        <p style="color: #6b7280; font-size: 14px; line-height: 1.6;">
+          This link expires in 24 hours. If you didn't create an account,
+          you can safely ignore this email.
+        </p>
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 32px 0;" />
+        <p style="color: #9ca3af; font-size: 12px;">
+          TaskForge — Simple task management for small teams
+        </p>
+      </div>
+    `,
+  });
+
+  if (error) {
+    console.error("Failed to send verification email:", error);
+    throw new Error("Failed to send verification email");
+  }
+}

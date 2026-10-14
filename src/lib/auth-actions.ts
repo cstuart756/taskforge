@@ -1,11 +1,13 @@
 "use server";
 import { RegisterSchema, LoginSchema } from "@/lib/schemas";
 import { redirect } from "next/navigation";
-import { hashPassword } from "@/lib/password";
 import { AuthError } from "next-auth";
 import { db } from "@/lib/db";
 import { signIn, signOut } from "@/auth";
 import { uniqueSlug } from "@/lib/slug";
+import { hashPassword } from "@/lib/password";
+import { createEmailVerificationToken } from "@/lib/email-verification";
+import { sendVerificationEmail } from "@/lib/email";
 
 // ---------------------------------------------------------------------------
 // Shared result type
@@ -55,7 +57,7 @@ export async function registerUser(
     };
   }
 
- const passwordHash = await hashPassword(password);
+  const passwordHash = await hashPassword(password);
 
   const teamName = `${name}'s Team`;
   const teamSlug = await uniqueSlug(teamName, async (candidate) => {
@@ -63,8 +65,9 @@ export async function registerUser(
     return found !== null;
   });
 
+  let newUserId: string;
   try {
-    await db.$transaction(async (tx) => {
+    newUserId = await db.$transaction(async (tx) => {
       const newUser = await tx.user.create({
         data: {
           name,
@@ -87,6 +90,8 @@ export async function registerUser(
           role: "OWNER",
         },
       });
+
+      return newUser.id;
     });
   } catch (error) {
     console.error("Registration failed:", error);
@@ -96,6 +101,20 @@ export async function registerUser(
     };
   }
 
+  // ---------------------------------------------------------------------
+  // Send verification email.
+  // If this fails, we do NOT roll back the account — the user can click
+  // "Resend email" on the /verify-email page.
+  // ---------------------------------------------------------------------
+  try {
+    const rawToken = await createEmailVerificationToken(newUserId);
+    await sendVerificationEmail(lowerEmail, rawToken);
+  } catch (error) {
+    console.error("Failed to send verification email:", error);
+    // Swallow — registration still succeeds.
+  }
+
+  // Auto sign-in so the user lands on /verify-email as an authenticated user
   try {
     await signIn("credentials", {
       email: lowerEmail,
@@ -108,12 +127,8 @@ export async function registerUser(
     }
   }
 
-  const callbackUrl = formData.get("callbackUrl");
-  const target =
-    typeof callbackUrl === "string" && callbackUrl.startsWith("/")
-      ? callbackUrl
-      : "/app";
-  redirect(target);
+  // Send to /verify-email instead of /app
+  redirect("/verify-email");
 }
 
 // ---------------------------------------------------------------------------
