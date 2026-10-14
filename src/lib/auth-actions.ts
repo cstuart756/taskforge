@@ -102,19 +102,34 @@ export async function registerUser(
   }
 
   // ---------------------------------------------------------------------
-  // Send verification email.
-  // If this fails, we do NOT roll back the account — the user can click
-  // "Resend email" on the /verify-email page.
+  // E2E test mode: skip email verification entirely so Playwright tests
+  // can register users and reach /app without needing to click a real
+  // email link. In this mode we mark the user verified immediately.
   // ---------------------------------------------------------------------
-  try {
-    const rawToken = await createEmailVerificationToken(newUserId);
-    await sendVerificationEmail(lowerEmail, rawToken);
-  } catch (error) {
-    console.error("Failed to send verification email:", error);
-    // Swallow — registration still succeeds.
+  const isTestMode = process.env.E2E_TEST_MODE === "true";
+
+  if (isTestMode) {
+    try {
+      await db.user.update({
+        where: { id: newUserId },
+        data: { emailVerified: new Date() },
+      });
+    } catch (error) {
+      console.error("Failed to mark user verified in test mode:", error);
+    }
+  } else {
+    // Send verification email. If this fails, we do NOT roll back the
+    // account — the user can click "Resend email" on /verify-email.
+    try {
+      const rawToken = await createEmailVerificationToken(newUserId);
+      await sendVerificationEmail(lowerEmail, rawToken);
+    } catch (error) {
+      console.error("Failed to send verification email:", error);
+      // Swallow — registration still succeeds.
+    }
   }
 
-  // Auto sign-in so the user lands on /verify-email as an authenticated user
+  // Auto sign-in so the user arrives on their destination page authenticated
   try {
     await signIn("credentials", {
       email: lowerEmail,
@@ -127,8 +142,8 @@ export async function registerUser(
     }
   }
 
-  // Send to /verify-email instead of /app
-  redirect("/verify-email");
+  // Test mode goes straight to /app; production goes to /verify-email
+  redirect(isTestMode ? "/app" : "/verify-email");
 }
 
 // ---------------------------------------------------------------------------

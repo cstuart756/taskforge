@@ -1,5 +1,4 @@
 import type { Page } from "@playwright/test";
-import { db } from "@/lib/db";
 
 export function uniqueEmail(prefix = "test"): string {
   const timestamp = Date.now();
@@ -21,21 +20,6 @@ export function makeTestUser(prefix = "test"): TestUser {
   };
 }
 
-/**
- * Mark a user's email as verified directly in the database.
- *
- * In production this happens when the user clicks the link in their
- * verification email. In E2E tests we can't read that email, so we
- * simulate the same end state — the route guard only checks this field,
- * so the guard behaviour is identical either way.
- */
-export async function verifyUserEmail(email: string): Promise<void> {
-  await db.user.update({
-    where: { email },
-    data: { emailVerified: new Date() },
-  });
-}
-
 export async function registerUser(
   page: Page,
   user: TestUser
@@ -46,14 +30,6 @@ export async function registerUser(
   await page.getByLabel("Password").fill(user.password);
   await page.getByRole("button", { name: /create account/i }).click();
 
-  // Registration now redirects to /verify-email, not /app
-  await page.waitForURL("**/verify-email", { timeout: 15000 });
-
-  // Simulate the user having clicked the verification link in their inbox
-  await verifyUserEmail(user.email);
-
-  // The route guard on /app will now let us through
-  await page.goto("/app");
   await page.waitForURL("**/app", { timeout: 15000 });
 }
 
