@@ -35,9 +35,14 @@ function createLimiter(
   }) as unknown as Limiter;
 }
 
+// ---------------------------------------------------------------------------
+// Named limiters — created lazily on first use
+// ---------------------------------------------------------------------------
+
 let forgotPasswordLimiter: Limiter | null | undefined;
 let loginLimiter: Limiter | null | undefined;
 let resetPasswordLimiter: Limiter | null | undefined;
+let resendVerificationLimiter: Limiter | null | undefined;
 
 function getForgotPasswordLimiter(): Limiter | null {
   if (forgotPasswordLimiter === undefined) {
@@ -60,6 +65,18 @@ function getResetPasswordLimiter(): Limiter | null {
   return resetPasswordLimiter;
 }
 
+function getResendVerificationLimiter(): Limiter | null {
+  if (resendVerificationLimiter === undefined) {
+    resendVerificationLimiter = createLimiter(3, "1 h", "resend-verification");
+  }
+  return resendVerificationLimiter;
+}
+
+/**
+ * Extract the client IP address from a request.
+ * Heroku and most proxies put the real IP in the first entry of
+ * x-forwarded-for. Fall back to x-real-ip, then "unknown".
+ */
 export function getClientIp(request: Request): string {
   const forwarded = request.headers.get("x-forwarded-for");
   if (forwarded) {
@@ -71,11 +88,16 @@ export function getClientIp(request: Request): string {
   return "unknown";
 }
 
+/**
+ * Check a rate limit. Returns { success, response } — response is set
+ * when the request should be rejected with 429.
+ */
 export async function checkRateLimit(
   limiter: Limiter | null,
   identifier: string,
   message: string
 ): Promise<{ success: true } | { success: false; response: Response }> {
+  // No Upstash configured → fail open (allow the request)
   if (!limiter) {
     return { success: true };
   }
@@ -112,13 +134,19 @@ export async function checkRateLimit(
       ),
     };
   } catch (err) {
+    // If Upstash is down, don't block the user — log and allow
     console.error("Rate limiter error (failing open):", err);
     return { success: true };
   }
 }
 
+// ---------------------------------------------------------------------------
+// Public getters
+// ---------------------------------------------------------------------------
+
 export const limiter = {
   forgotPassword: getForgotPasswordLimiter,
   login: getLoginLimiter,
   resetPassword: getResetPasswordLimiter,
+  resendVerification: getResendVerificationLimiter,
 };

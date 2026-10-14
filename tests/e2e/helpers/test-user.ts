@@ -52,7 +52,6 @@ export async function createTeam(
   await page.getByLabel("Team name").fill(teamName);
   await page.getByRole("button", { name: /create team/i }).click();
 
-  // Wait for redirect to a specific team page (not the /new form)
   await page.waitForURL(
     (url) => {
       const path = url.pathname;

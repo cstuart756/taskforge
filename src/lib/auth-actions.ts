@@ -1,11 +1,13 @@
 "use server";
 import { RegisterSchema, LoginSchema } from "@/lib/schemas";
 import { redirect } from "next/navigation";
-import { hashPassword } from "@/lib/password";
 import { AuthError } from "next-auth";
 import { db } from "@/lib/db";
 import { signIn, signOut } from "@/auth";
 import { uniqueSlug } from "@/lib/slug";
+import { hashPassword } from "@/lib/password";
+import { createEmailVerificationToken } from "@/lib/email-verification";
+import { sendVerificationEmail } from "@/lib/email";
 
 // ---------------------------------------------------------------------------
 // Shared result type
@@ -55,7 +57,7 @@ export async function registerUser(
     };
   }
 
- const passwordHash = await hashPassword(password);
+  const passwordHash = await hashPassword(password);
 
   const teamName = `${name}'s Team`;
   const teamSlug = await uniqueSlug(teamName, async (candidate) => {
@@ -63,8 +65,9 @@ export async function registerUser(
     return found !== null;
   });
 
+  let newUserId: string;
   try {
-    await db.$transaction(async (tx) => {
+    newUserId = await db.$transaction(async (tx) => {
       const newUser = await tx.user.create({
         data: {
           name,
@@ -87,6 +90,8 @@ export async function registerUser(
           role: "OWNER",
         },
       });
+
+      return newUser.id;
     });
   } catch (error) {
     console.error("Registration failed:", error);
@@ -96,6 +101,35 @@ export async function registerUser(
     };
   }
 
+  // ---------------------------------------------------------------------
+  // E2E test mode: skip email verification entirely so Playwright tests
+  // can register users and reach /app without needing to click a real
+  // email link. In this mode we mark the user verified immediately.
+  // ---------------------------------------------------------------------
+  const isTestMode = process.env.E2E_TEST_MODE === "true";
+
+  if (isTestMode) {
+    try {
+      await db.user.update({
+        where: { id: newUserId },
+        data: { emailVerified: new Date() },
+      });
+    } catch (error) {
+      console.error("Failed to mark user verified in test mode:", error);
+    }
+  } else {
+    // Send verification email. If this fails, we do NOT roll back the
+    // account — the user can click "Resend email" on /verify-email.
+    try {
+      const rawToken = await createEmailVerificationToken(newUserId);
+      await sendVerificationEmail(lowerEmail, rawToken);
+    } catch (error) {
+      console.error("Failed to send verification email:", error);
+      // Swallow — registration still succeeds.
+    }
+  }
+
+  // Auto sign-in so the user arrives on their destination page authenticated
   try {
     await signIn("credentials", {
       email: lowerEmail,
@@ -108,12 +142,8 @@ export async function registerUser(
     }
   }
 
-  const callbackUrl = formData.get("callbackUrl");
-  const target =
-    typeof callbackUrl === "string" && callbackUrl.startsWith("/")
-      ? callbackUrl
-      : "/app";
-  redirect(target);
+  // Test mode goes straight to /app; production goes to /verify-email
+  redirect(isTestMode ? "/app" : "/verify-email");
 }
 
 // ---------------------------------------------------------------------------

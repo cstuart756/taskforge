@@ -4,6 +4,7 @@ import Link from "next/link";
 import { logoutUser } from "@/lib/auth-actions";
 import { getUserTeams } from "@/lib/team-actions";
 import { getTaskMetrics } from "@/lib/task-actions";
+import { db } from "@/lib/db";
 import SiteFooter from "@/components/layout/site-footer";
 
 function formatRole(role: string): string {
@@ -18,12 +19,29 @@ function formatMembers(count: number): string {
   return count === 1 ? "1 member" : `${count} members`;
 }
 
-export default async function AppDashboardPage() {
+type PageProps = {
+  searchParams: Promise<{ verified?: string }>;
+};
+
+export default async function AppDashboardPage({ searchParams }: PageProps) {
   const session = await auth();
 
-  if (!session?.user) {
+  if (!session?.user?.email) {
     redirect("/login");
   }
+
+  // Route guard: unverified users must verify before accessing the dashboard.
+  const user = await db.user.findUnique({
+    where: { email: session.user.email },
+    select: { emailVerified: true },
+  });
+
+  if (!user?.emailVerified) {
+    redirect("/verify-email");
+  }
+
+  const { verified } = await searchParams;
+  const showVerifiedBanner = verified === "true";
 
   const [teams, metrics] = await Promise.all([
     getUserTeams(),
@@ -33,6 +51,12 @@ export default async function AppDashboardPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-4xl mx-auto px-6 py-10">
+        {showVerifiedBanner && (
+          <div className="mb-6 rounded-md bg-green-50 border border-green-200 p-4 text-sm text-green-800">
+            Email verified. Welcome to TaskForge.
+          </div>
+        )}
+
         <div className="flex items-start justify-between mb-10">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
