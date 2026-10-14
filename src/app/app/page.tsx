@@ -77,6 +77,12 @@ export default async function AppDashboardPage({ searchParams }: PageProps) {
             >
               All tasks
             </Link>
+            <Link
+              href="/app/settings"
+              className="bg-white text-gray-700 border border-gray-300 px-4 py-2 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            >
+              Settings
+            </Link>
             <form action={logoutUser}>
               <button
                 type="submit"
