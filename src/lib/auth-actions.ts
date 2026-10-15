@@ -5,9 +5,10 @@ import { AuthError } from "next-auth";
 import { db } from "@/lib/db";
 import { signIn, signOut } from "@/auth";
 import { uniqueSlug } from "@/lib/slug";
-import { hashPassword } from "@/lib/password";
+import { hashPassword, verifyPassword } from "@/lib/password";
 import { createEmailVerificationToken } from "@/lib/email-verification";
 import { sendVerificationEmail } from "@/lib/email";
+import { createPending2FA } from "@/lib/two-factor-session";
 
 // ---------------------------------------------------------------------------
 // Shared result type
@@ -101,11 +102,6 @@ export async function registerUser(
     };
   }
 
-  // ---------------------------------------------------------------------
-  // E2E test mode: skip email verification entirely so Playwright tests
-  // can register users and reach /app without needing to click a real
-  // email link. In this mode we mark the user verified immediately.
-  // ---------------------------------------------------------------------
   const isTestMode = process.env.E2E_TEST_MODE === "true";
 
   if (isTestMode) {
@@ -118,18 +114,14 @@ export async function registerUser(
       console.error("Failed to mark user verified in test mode:", error);
     }
   } else {
-    // Send verification email. If this fails, we do NOT roll back the
-    // account — the user can click "Resend email" on /verify-email.
     try {
       const rawToken = await createEmailVerificationToken(newUserId);
       await sendVerificationEmail(lowerEmail, rawToken);
     } catch (error) {
       console.error("Failed to send verification email:", error);
-      // Swallow — registration still succeeds.
     }
   }
 
-  // Auto sign-in so the user arrives on their destination page authenticated
   try {
     await signIn("credentials", {
       email: lowerEmail,
@@ -142,7 +134,6 @@ export async function registerUser(
     }
   }
 
-  // Test mode goes straight to /app; production goes to /verify-email
   redirect(isTestMode ? "/app" : "/verify-email");
 }
 
@@ -168,11 +159,40 @@ export async function loginUser(
   }
 
   const email = parsed.data.email.toLowerCase();
+  const password = parsed.data.password;
 
+  // -----------------------------------------------------------------------
+  // Pre-check: if the user has 2FA enabled, verify the password here and
+  // redirect to the challenge page. We never call signIn("credentials")
+  // for a 2FA user — the credentials provider also refuses them, so
+  // direct POSTs to /api/auth/callback/credentials are blocked too.
+  // -----------------------------------------------------------------------
+  const candidate = await db.user.findUnique({
+    where: { email },
+    select: { id: true, twoFactorEnabled: true, passwordHash: true },
+  });
+
+  if (candidate?.twoFactorEnabled && candidate.passwordHash) {
+    const passwordOk = await verifyPassword(password, candidate.passwordHash);
+
+    if (!passwordOk) {
+      return {
+        success: false,
+        error: "Invalid email or password.",
+      };
+    }
+
+    const pendingToken = await createPending2FA(candidate.id);
+    redirect(`/login/2fa?token=${pendingToken}`);
+  }
+
+  // -----------------------------------------------------------------------
+  // Normal single-step login
+  // -----------------------------------------------------------------------
   try {
     await signIn("credentials", {
       email,
-      password: parsed.data.password,
+      password,
       redirect: false,
     });
   } catch (error) {

@@ -5,6 +5,8 @@ import { db } from "@/lib/db";
 import { authConfig } from "@/auth.config";
 import { verifyPassword } from "@/lib/password";
 import { checkRateLimit, limiter } from "@/lib/rate-limit";
+import { verifyTOTP, findMatchingBackupCode } from "@/lib/two-factor";
+import { getPending2FA, deletePending2FA } from "@/lib/two-factor-session";
 
 export const {
   handlers,
@@ -16,7 +18,11 @@ export const {
   ...authConfig,
   adapter: PrismaAdapter(db),
   providers: [
+    // -----------------------------------------------------------------
+    // Primary credentials — email + password
+    // -----------------------------------------------------------------
     Credentials({
+      id: "credentials",
       name: "Credentials",
       credentials: {
         email: { label: "Email", type: "email" },
@@ -30,9 +36,6 @@ export const {
         const email = String(credentials.email).toLowerCase();
         const password = String(credentials.password);
 
-        // Rate limit login attempts by email.
-        // NextAuth's authorize callback doesn't expose the request,
-        // so we key on email rather than IP.
         const rateCheck = await checkRateLimit(
           limiter.login(),
           `login:${email}`,
@@ -59,12 +62,105 @@ export const {
           return null;
         }
 
+        // If 2FA is enabled, DO NOT issue a session from this provider.
+        // The caller must complete the two-step flow via /login/2fa.
+        // This prevents anyone from bypassing 2FA by POSTing directly
+        // to /api/auth/callback/credentials.
+        if (user.twoFactorEnabled) {
+          return null;
+        }
+
         return {
           id: user.id,
           email: user.email,
           name: user.name,
           image: user.image,
         };
+      },
+    }),
+
+    // -----------------------------------------------------------------
+    // Two-factor challenge — pending token + TOTP code or backup code
+    // -----------------------------------------------------------------
+    Credentials({
+      id: "credentials-2fa",
+      name: "Credentials 2FA",
+      credentials: {
+        pendingToken: { label: "Pending Token", type: "text" },
+        code: { label: "Code", type: "text" },
+      },
+      async authorize(credentials) {
+        if (!credentials?.pendingToken || !credentials?.code) {
+          return null;
+        }
+
+        const pendingToken = String(credentials.pendingToken);
+        const code = String(credentials.code).trim();
+
+        // Look up + consume the pending token (single-use).
+        // We delete it BEFORE verifying the code so that even an
+        // invalid attempt burns the token — no brute force possible.
+        const userId = await getPending2FA(pendingToken);
+        if (!userId) {
+          return null;
+        }
+        await deletePending2FA(pendingToken);
+
+        const user = await db.user.findUnique({
+          where: { id: userId },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            image: true,
+            twoFactorEnabled: true,
+            twoFactorSecret: true,
+            twoFactorBackupCodes: true,
+          },
+        });
+
+        if (!user || !user.twoFactorEnabled || !user.twoFactorSecret) {
+          return null;
+        }
+
+        // Try TOTP first
+        const totpOk = await verifyTOTP(code, user.twoFactorSecret);
+        if (totpOk) {
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            image: user.image,
+          };
+        }
+
+        // Fall back to backup codes
+        const matchedHash = findMatchingBackupCode(
+          code,
+          user.twoFactorBackupCodes
+        );
+        if (matchedHash) {
+          // Remove the used code — each backup code is single-use
+          await db.user.update({
+            where: { id: user.id },
+            data: {
+              twoFactorBackupCodes: {
+                set: user.twoFactorBackupCodes.filter(
+                  (h) => h !== matchedHash
+                ),
+              },
+            },
+          });
+
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            image: user.image,
+          };
+        }
+
+        return null;
       },
     }),
   ],
