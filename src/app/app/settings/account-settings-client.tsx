@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import Link from "next/link";
 import {
   updateName,
   changePassword,
@@ -41,6 +42,28 @@ export default function AccountSettingsClient({
 
   return (
     <div className="space-y-6">
+      {/* --------------------------------------------------------------- */}
+      {/* Security (link to /app/settings/security)                       */}
+      {/* --------------------------------------------------------------- */}
+      <section className="bg-white border border-gray-200 rounded-lg p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900 mb-1">
+              Security
+            </h2>
+            <p className="text-sm text-gray-600">
+              Manage two-factor authentication and other security settings.
+            </p>
+          </div>
+          <Link
+            href="/app/settings/security"
+            className="text-sm bg-white text-gray-700 border border-gray-300 px-4 py-2 rounded-md hover:bg-gray-50 font-medium whitespace-nowrap"
+          >
+            Security settings →
+          </Link>
+        </div>
+      </section>
+
       {/* --------------------------------------------------------------- */}
       {/* Display name                                                    */}
       {/* --------------------------------------------------------------- */}
