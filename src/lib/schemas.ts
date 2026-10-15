@@ -95,3 +95,18 @@ export const ChangePasswordSchema = z
     message: "New password must be different from current password",
     path: ["newPassword"],
   });
+
+// ---------------------------------------------------------------------------
+// Two-factor authentication schemas
+// ---------------------------------------------------------------------------
+
+export const Enable2FASchema = z.object({
+  code: z
+    .string()
+    .min(1, "Code is required")
+    .regex(/^\d{6}$/, "Code must be exactly 6 digits"),
+});
+
+export const Disable2FASchema = z.object({
+  password: z.string().min(1, "Password is required"),
+});
